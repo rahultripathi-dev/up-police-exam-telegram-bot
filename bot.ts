@@ -1,9 +1,9 @@
 import { Telegraf } from 'telegraf';
 import { getUser, upsertUser } from './storage';
-import { generateMCQs, generateTimetable } from './mcq';
+import { generateTimetable } from './mcq';
 import { formatMCQMessage, formatMCQAnswer } from './formatter';
-import { sendDailyDigest, getMCQCache, getNews } from './scheduler';
-import { getDailyMCQs, setDailyMCQs, getUserTimetable, setUserTimetable } from './cache';
+import { sendDailyDigest, getMCQCache, warmDailyMCQs } from './scheduler';
+import { getDailyMCQs, getUserTimetable, setUserTimetable } from './cache';
 
 export async function startBot(): Promise<Telegraf> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -45,27 +45,19 @@ export async function startBot(): Promise<Telegraf> {
     await sendDailyDigest(bot, user);
   });
 
-  // /quiz — serve from daily cache; generate on cold start
+  // /quiz — scrape MCQs (AI fallback), cache for the day
   bot.command('quiz', async (ctx) => {
-    let daily = getDailyMCQs();
-
-    if (!daily || daily.length === 0) {
+    if (!getDailyMCQs()) {
       await ctx.reply('🧠 Quiz तैयार की जा रही है...');
-      const news = await getNews('both', 15);
-      if (news.length === 0) {
-        await ctx.reply('⚠️ करेंट अफेयर्स नहीं मिले। /today try करें।');
-        return;
-      }
-      const mcqs = await generateMCQs(news, 15);
-      if (mcqs.length === 0) {
-        await ctx.reply('⚠️ Quiz नहीं बन सकी। GEMINI_API_KEY चेक करें।');
-        return;
-      }
-      await setDailyMCQs(mcqs);
-      daily = mcqs;
+      await warmDailyMCQs();
     }
 
-    // Pick 5 random from today's pool — each user gets a different set
+    const daily = getDailyMCQs();
+    if (!daily || daily.length === 0) {
+      await ctx.reply('⚠️ Quiz नहीं बन सकी। थोड़ी देर बाद try करें।');
+      return;
+    }
+
     const selected = shuffle(daily).slice(0, 5);
     getMCQCache().set(ctx.chat.id, selected);
     for (const m of formatMCQMessage(selected)) {
