@@ -20,18 +20,43 @@ const RSS_SOURCES = [
   { url: 'https://feeds.bbci.co.uk/hindi/rss.xml', label: 'BBC Hindi' },
 ];
 
-export async function fetchGKToday(limit = 10): Promise<NewsItem[]> {
-  // Fetch from UP source + national source and merge
-  const upNews = await fetchFromSource(RSS_SOURCES[0], Math.ceil(limit * 0.6));
-  const nationalNews = await fetchFromSource(RSS_SOURCES[1], Math.floor(limit * 0.4));
+// Keywords to exclude — crime, accidents, politics noise
+const EXCLUDE_KEYWORDS = [
+  // Crime
+  'हत्या', 'मर्डर', 'चोरी', 'डकैती', 'लूट', 'बलात्कार', 'दुष्कर्म', 'छेड़छाड़',
+  'गिरफ्तार', 'गिरफ्तारी', 'फरार', 'जेल', 'मुठभेड़', 'एनकाउंटर', 'हमला',
+  'अपहरण', 'फिरौती', 'तस्करी', 'ड्रग्स', 'नशा', 'गैंगस्टर', 'माफिया',
+  // Accidents & disasters
+  'दुर्घटना', 'हादसा', 'सड़क हादसा', 'रेल हादसा', 'आग लगी', 'आगजनी',
+  'बाढ़', 'भूकंप', 'तूफान', 'मौसम', 'बारिश', 'ओलावृष्टि',
+  // Political noise
+  'विवाद', 'आरोप', 'प्रदर्शन', 'धरना', 'झगड़ा', 'मारपीट', 'बवाल',
+  'जनसभा', 'रैली', 'चुनाव प्रचार',
+  // English equivalents
+  'murder', 'rape', 'robbery', 'arrested', 'encounter', 'accident', 'fire broke',
+  'riot', 'protest', 'gang',
+];
 
-  const merged = [...upNews, ...nationalNews].slice(0, limit);
-  if (merged.length > 0) return merged;
+function isExamRelevant(item: NewsItem): boolean {
+  const text = (item.title + ' ' + item.summary).toLowerCase();
+  return !EXCLUDE_KEYWORDS.some((kw) => text.includes(kw.toLowerCase()));
+}
+
+export async function fetchGKToday(limit = 10): Promise<NewsItem[]> {
+  // Fetch extra to compensate for filtered items
+  const fetchLimit = limit * 3;
+  const upNews = await fetchFromSource(RSS_SOURCES[0], Math.ceil(fetchLimit * 0.6));
+  const nationalNews = await fetchFromSource(RSS_SOURCES[1], Math.floor(fetchLimit * 0.4));
+
+  const filtered = [...upNews, ...nationalNews].filter(isExamRelevant).slice(0, limit);
+  console.log(`After filtering: ${filtered.length}/${upNews.length + nationalNews.length} exam-relevant items`);
+  if (filtered.length > 0) return filtered;
 
   // Fallback: try remaining sources
   for (const source of RSS_SOURCES.slice(2)) {
-    const items = await fetchFromSource(source, limit);
-    if (items.length > 0) return items;
+    const items = await fetchFromSource(source, fetchLimit);
+    const fallbackFiltered = items.filter(isExamRelevant).slice(0, limit);
+    if (fallbackFiltered.length > 0) return fallbackFiltered;
   }
 
   console.error('All RSS sources failed');
