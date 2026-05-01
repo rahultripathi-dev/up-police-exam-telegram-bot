@@ -12,12 +12,22 @@ const parser = new Parser({
   customFields: { item: ['content:encoded', 'description'] },
 });
 
-// UP-focused sources in priority order
 const RSS_SOURCES = [
+  // UP-specific
   { url: 'https://www.amarujala.com/rss/uttar-pradesh.xml', label: 'Amar Ujala UP' },
+  // All-India national
   { url: 'https://www.amarujala.com/rss/india-news.xml', label: 'Amar Ujala National' },
-  { url: 'https://www.amarujala.com/rss/education.xml', label: 'Amar Ujala Education' },
+  { url: 'https://www.jagran.com/rss/national.xml', label: 'Jagran National' },
+  { url: 'https://navbharattimes.indiatimes.com/rss/national.xml', label: 'NBT National' },
   { url: 'https://feeds.bbci.co.uk/hindi/rss.xml', label: 'BBC Hindi' },
+  // Education & exams
+  { url: 'https://www.amarujala.com/rss/education.xml', label: 'Amar Ujala Education' },
+  { url: 'https://www.jagran.com/rss/education.xml', label: 'Jagran Education' },
+  // Economy & science
+  { url: 'https://www.amarujala.com/rss/business.xml', label: 'Amar Ujala Business' },
+  { url: 'https://www.amarujala.com/rss/technology.xml', label: 'Amar Ujala Tech' },
+  // Sports
+  { url: 'https://www.amarujala.com/rss/sports.xml', label: 'Amar Ujala Sports' },
 ];
 
 // Keywords to exclude — crime, accidents, politics noise
@@ -43,24 +53,33 @@ function isExamRelevant(item: NewsItem): boolean {
 }
 
 export async function fetchGKToday(limit = 10): Promise<NewsItem[]> {
-  // Fetch extra to compensate for filtered items
-  const fetchLimit = limit * 3;
-  const upNews = await fetchFromSource(RSS_SOURCES[0], Math.ceil(fetchLimit * 0.6));
-  const nationalNews = await fetchFromSource(RSS_SOURCES[1], Math.floor(fetchLimit * 0.4));
+  // Fetch from all sources in parallel, 15 items each
+  const results = await Promise.allSettled(
+    RSS_SOURCES.map((src) => fetchFromSource(src, 15))
+  );
 
-  const filtered = [...upNews, ...nationalNews].filter(isExamRelevant).slice(0, limit);
-  console.log(`After filtering: ${filtered.length}/${upNews.length + nationalNews.length} exam-relevant items`);
-  if (filtered.length > 0) return filtered;
-
-  // Fallback: try remaining sources
-  for (const source of RSS_SOURCES.slice(2)) {
-    const items = await fetchFromSource(source, fetchLimit);
-    const fallbackFiltered = items.filter(isExamRelevant).slice(0, limit);
-    if (fallbackFiltered.length > 0) return fallbackFiltered;
+  const all: NewsItem[] = [];
+  for (const r of results) {
+    if (r.status === 'fulfilled') all.push(...r.value);
   }
 
-  console.error('All RSS sources failed');
-  return [];
+  // Deduplicate by normalised title
+  const seen = new Set<string>();
+  const unique = all.filter((item) => {
+    const key = item.title.replace(/\s+/g, ' ').toLowerCase().slice(0, 60);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  const filtered = unique.filter(isExamRelevant).slice(0, limit);
+  console.log(`Sources: ${all.length} raw → ${unique.length} unique → ${filtered.length} exam-relevant`);
+
+  if (filtered.length > 0) return filtered;
+
+  // Last resort: return unfiltered unique items
+  console.warn('Filter too aggressive, returning unfiltered items');
+  return unique.slice(0, limit);
 }
 
 async function fetchFromSource(
