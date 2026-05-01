@@ -3,6 +3,7 @@ import { Telegraf } from 'telegraf';
 import { getAllActiveUsers, UserPrefs } from './storage';
 import { fetchGKToday, NewsItem } from './scraper';
 import { generateMCQs, MCQ } from './mcq';
+import { scrapeQuizzes } from './quiz-scraper';
 import { formatNewsMessage, formatMCQMessage } from './formatter';
 import { getDailyMCQs, setDailyMCQs, getCachedNews, setCachedNews } from './cache';
 
@@ -25,13 +26,21 @@ export async function getNews(region: string, limit: number): Promise<NewsItem[]
   return fresh;
 }
 
-// Generate daily MCQ pool once — skips if already done today
+// Generate daily MCQ pool once — scraping first, AI as last resort
 export async function warmDailyMCQs(): Promise<void> {
   if (getDailyMCQs()) return;
-  console.log('🤖 Generating daily MCQ pool...');
-  const news = await getNews('both', 15);
-  if (news.length === 0) return;
-  const mcqs = await generateMCQs(news, 15);
+
+  // 1. Try scraping (free, no quota)
+  console.log('🕸️ Scraping daily MCQ pool...');
+  let mcqs = await scrapeQuizzes();
+
+  // 2. Fall back to AI only if scraping fails
+  if (mcqs.length < 5) {
+    console.log('🤖 Scraping failed, falling back to AI...');
+    const news = await getNews('both', 15);
+    if (news.length > 0) mcqs = await generateMCQs(news, 15);
+  }
+
   if (mcqs.length > 0) await setDailyMCQs(mcqs);
 }
 
