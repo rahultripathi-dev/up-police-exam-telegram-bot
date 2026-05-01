@@ -13,6 +13,7 @@ export interface UserPrefs {
   mcqCount: number; // 0-10
   paused: boolean;
   region: NewsRegion; // up | india | both
+  examDate?: string;  // DD-MM-YYYY — used for timetable generation
   createdAt: string;
 }
 
