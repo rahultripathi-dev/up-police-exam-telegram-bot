@@ -24,6 +24,7 @@ export async function startBot(): Promise<Telegraf> {
         `<b>Commands:</b>\n` +
         `/today — अभी करेंट अफेयर्स देखें\n` +
         `/quiz — MCQ प्रैक्टिस करें\n` +
+        `/setregion — क्षेत्र चुनें: up / india / both\n` +
         `/settime HH:MM — समय बदलें (जैसे <code>/settime 06:30</code>)\n` +
         `/setcount N — खबरों की संख्या, 5–15\n` +
         `/setmcqs N — MCQ की संख्या, 0–10\n` +
@@ -93,6 +94,28 @@ export async function startBot(): Promise<Telegraf> {
     await ctx.reply(`✅ डेली समय <b>${time} IST</b> सेट हो गया`, { parse_mode: 'HTML' });
   });
 
+  // /setregion up | india | both
+  bot.command('setregion', async (ctx) => {
+    const arg = ctx.message.text.split(/\s+/)[1]?.toLowerCase();
+    if (!arg || !['up', 'india', 'both'].includes(arg)) {
+      await ctx.reply(
+        '📍 <b>क्षेत्र चुनें:</b>\n\n' +
+        '/setregion up — सिर्फ उत्तर प्रदेश की खबरें\n' +
+        '/setregion india — पूरे भारत की खबरें\n' +
+        '/setregion both — UP + भारत दोनों (default)',
+        { parse_mode: 'HTML' }
+      );
+      return;
+    }
+    await upsertUser(ctx.chat.id, { region: arg as 'up' | 'india' | 'both' });
+    const labels: Record<string, string> = {
+      up: '🗺 सिर्फ उत्तर प्रदेश',
+      india: '🇮🇳 पूरा भारत',
+      both: '🗺+🇮🇳 UP + भारत',
+    };
+    await ctx.reply(`✅ क्षेत्र सेट: <b>${labels[arg]}</b>`, { parse_mode: 'HTML' });
+  });
+
   // /setcount N
   bot.command('setcount', async (ctx) => {
     const n = parseInt(ctx.message.text.split(/\s+/)[1], 10);
@@ -143,6 +166,7 @@ export async function startBot(): Promise<Telegraf> {
         `⏰ समय: <b>${user.schedule} IST</b>\n` +
         `📰 खबरें: <b>${user.newsCount}</b>\n` +
         `🧠 MCQ: <b>${user.mcqCount}</b>\n` +
+        `🗺 क्षेत्र: <b>${{ up: 'सिर्फ UP', india: 'पूरा भारत', both: 'UP + भारत' }[user.region ?? 'both']}</b>\n` +
         `📡 स्थिति: ${user.paused ? '⏸ <b>रुका हुआ</b>' : '✅ <b>सक्रिय</b>'}`,
       { parse_mode: 'HTML' }
     );
@@ -154,6 +178,7 @@ export async function startBot(): Promise<Telegraf> {
       `<b>UP Police 2026 Bot — Commands</b>\n\n` +
         `/today — अभी करेंट अफेयर्स\n` +
         `/quiz — MCQ प्रैक्टिस\n` +
+        `/setregion up|india|both — क्षेत्र चुनें\n` +
         `/settime HH:MM — डेली समय बदलें\n` +
         `/setcount N — खबरों की संख्या (5–15)\n` +
         `/setmcqs N — MCQ की संख्या (0–10)\n` +

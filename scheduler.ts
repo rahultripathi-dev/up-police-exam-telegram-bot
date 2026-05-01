@@ -31,12 +31,20 @@ export function initScheduler(bot: Telegraf): void {
 
       console.log(`📤 Dispatching to ${due.length} user(s) at ${currentTime} IST`);
 
-      // Fetch news once for all due users
-      const maxNews = Math.max(...due.map((u) => u.newsCount));
-      const news = await fetchGKToday(maxNews);
+      // Group by region and fetch once per group
+      const groups = new Map<string, typeof due>();
+      for (const u of due) {
+        const r = u.region ?? 'both';
+        if (!groups.has(r)) groups.set(r, []);
+        groups.get(r)!.push(u);
+      }
 
-      for (const user of due) {
-        await sendDailyDigest(bot, user, news);
+      for (const [region, users] of groups) {
+        const maxNews = Math.max(...users.map((u) => u.newsCount));
+        const news = await fetchGKToday(maxNews, region as 'up' | 'india' | 'both');
+        for (const user of users) {
+          await sendDailyDigest(bot, user, news);
+        }
       }
     } catch (err) {
       console.error('Scheduler tick error:', err);
@@ -52,7 +60,7 @@ export async function sendDailyDigest(
   prefetchedNews?: NewsItem[]
 ): Promise<void> {
   try {
-    const allNews = prefetchedNews || (await fetchGKToday(user.newsCount));
+    const allNews = prefetchedNews || (await fetchGKToday(user.newsCount, user.region ?? 'both'));
     const userNews = allNews.slice(0, user.newsCount);
 
     if (userNews.length === 0) {

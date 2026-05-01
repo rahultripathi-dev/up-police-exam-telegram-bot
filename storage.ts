@@ -3,6 +3,8 @@ import path from 'path';
 
 const DB_PATH = process.env.DB_PATH || './data/users.json';
 
+export type NewsRegion = 'up' | 'india' | 'both';
+
 export interface UserPrefs {
   chatId: number;
   username?: string;
@@ -10,6 +12,7 @@ export interface UserPrefs {
   newsCount: number; // 5-15
   mcqCount: number; // 0-10
   paused: boolean;
+  region: NewsRegion; // up | india | both
   createdAt: string;
 }
 
@@ -24,6 +27,7 @@ const DEFAULTS: Omit<UserPrefs, 'chatId' | 'createdAt'> = {
   newsCount: 10,
   mcqCount: 5,
   paused: false,
+  region: 'both',
 };
 
 export async function initStorage(): Promise<void> {

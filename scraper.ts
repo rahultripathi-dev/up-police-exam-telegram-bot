@@ -12,21 +12,19 @@ const parser = new Parser({
   customFields: { item: ['content:encoded', 'description'] },
 });
 
-const RSS_SOURCES = [
-  // UP-specific
+const UP_SOURCES = [
   { url: 'https://www.amarujala.com/rss/uttar-pradesh.xml', label: 'Amar Ujala UP' },
-  // All-India national
+];
+
+const INDIA_SOURCES = [
   { url: 'https://www.amarujala.com/rss/india-news.xml', label: 'Amar Ujala National' },
   { url: 'https://www.jagran.com/rss/national.xml', label: 'Jagran National' },
   { url: 'https://navbharattimes.indiatimes.com/rss/national.xml', label: 'NBT National' },
   { url: 'https://feeds.bbci.co.uk/hindi/rss.xml', label: 'BBC Hindi' },
-  // Education & exams
   { url: 'https://www.amarujala.com/rss/education.xml', label: 'Amar Ujala Education' },
   { url: 'https://www.jagran.com/rss/education.xml', label: 'Jagran Education' },
-  // Economy & science
   { url: 'https://www.amarujala.com/rss/business.xml', label: 'Amar Ujala Business' },
   { url: 'https://www.amarujala.com/rss/technology.xml', label: 'Amar Ujala Tech' },
-  // Sports
   { url: 'https://www.amarujala.com/rss/sports.xml', label: 'Amar Ujala Sports' },
 ];
 
@@ -52,10 +50,15 @@ function isExamRelevant(item: NewsItem): boolean {
   return !EXCLUDE_KEYWORDS.some((kw) => text.includes(kw.toLowerCase()));
 }
 
-export async function fetchGKToday(limit = 10): Promise<NewsItem[]> {
-  // Fetch from all sources in parallel, 15 items each
+export async function fetchGKToday(limit = 10, region: 'up' | 'india' | 'both' = 'both'): Promise<NewsItem[]> {
+  const sources =
+    region === 'up' ? UP_SOURCES :
+    region === 'india' ? INDIA_SOURCES :
+    [...UP_SOURCES, ...INDIA_SOURCES];
+
+  // Fetch from selected sources in parallel, 15 items each
   const results = await Promise.allSettled(
-    RSS_SOURCES.map((src) => fetchFromSource(src, 15))
+    sources.map((src) => fetchFromSource(src, 15))
   );
 
   const all: NewsItem[] = [];
