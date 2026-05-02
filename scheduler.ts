@@ -3,7 +3,7 @@ import { Telegraf } from 'telegraf';
 import { getAllActiveUsers, UserPrefs } from './storage';
 import { fetchGKToday, NewsItem } from './scraper';
 import { MCQ } from './mcq';
-import { buildDailyQuiz } from './quiz-engine';
+import { buildDailyQuiz, getGKBankSize } from './quiz-engine';
 import { formatNewsMessage, formatMCQMessage } from './formatter';
 import { getDailyMCQs, setDailyMCQs, getCachedNews, setCachedNews } from './cache';
 
@@ -29,14 +29,12 @@ export async function getNews(region: string, limit: number): Promise<NewsItem[]
 // Build daily MCQ pool once — no AI, uses quiz engine
 export async function warmDailyMCQs(): Promise<void> {
   if (getDailyMCQs()) return;
-  console.log('🎯 Building daily quiz pool (no AI)...');
-  const news = await getNews('both', 20);
-  console.log(`📰 News fetched: ${news.length} items`);
-  if (news.length === 0) {
-    console.error('❌ No news — quiz generation skipped');
+  if (getGKBankSize() === 0) {
+    console.warn('⚠️ GK Bank empty — run /scrape first');
     return;
   }
-  const mcqs = buildDailyQuiz(news, 15);
+  console.log('🎯 Building daily quiz from GK bank...');
+  const mcqs = buildDailyQuiz(15);
   console.log(`🧠 Quiz built: ${mcqs.length} questions`);
   if (mcqs.length > 0) await setDailyMCQs(mcqs);
   else console.error('❌ Quiz engine returned empty');

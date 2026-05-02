@@ -1,7 +1,7 @@
 import { Telegraf } from 'telegraf';
 import { getUser, upsertUser } from './storage';
 import { generateTimetable } from './mcq';
-import { formatMCQMessage, formatMCQAnswer } from './formatter';
+import { formatMCQWithKeyboard, formatMCQResult } from './formatter';
 import { sendDailyDigest, getMCQCache, warmDailyMCQs } from './scheduler';
 import { getDailyMCQs, getUserTimetable, setUserTimetable } from './cache';
 import { scrapeGKBank } from './gk-bank-scraper';
@@ -49,7 +49,7 @@ export async function startBot(): Promise<Telegraf> {
     await sendDailyDigest(bot, user);
   });
 
-  // /quiz — scrape MCQs (AI fallback), cache for the day
+  // /quiz — send questions one by one with A/B/C/D inline buttons
   bot.command('quiz', async (ctx) => {
     if (!getDailyMCQs()) {
       await ctx.reply('🧠 Quiz तैयार की जा रही है...');
@@ -58,27 +58,53 @@ export async function startBot(): Promise<Telegraf> {
 
     const daily = getDailyMCQs();
     if (!daily || daily.length === 0) {
-      await ctx.reply('⚠️ Quiz नहीं बन सकी। थोड़ी देर बाद try करें।');
+      await ctx.reply('⚠️ Quiz नहीं बन सकी। पहले /scrape चलाएं।');
       return;
     }
 
     const selected = shuffle(daily).slice(0, 5);
     getMCQCache().set(ctx.chat.id, selected);
-    for (const m of formatMCQMessage(selected)) {
-      await ctx.reply(m, { parse_mode: 'HTML' });
-      await sleep(400);
-    }
+
+    // Send first question with inline buttons
+    const { text, reply_markup } = formatMCQWithKeyboard(selected[0], 0, selected.length);
+    await ctx.reply(text, { parse_mode: 'HTML', reply_markup } as any);
   });
 
-  // /a1, /a2... — MCQ answer reveal
-  bot.hears(/^\/a(\d+)$/, async (ctx) => {
-    const num = parseInt((ctx.match as RegExpMatchArray)[1], 10);
-    const mcqs = getMCQCache().get(ctx.chat.id);
-    if (!mcqs || !mcqs[num - 1]) {
-      await ctx.reply('Quiz expire हो गई। /quiz से नई शुरू करें।');
+  // Inline button callback — q:{questionIndex}:{chosenOptionIndex}
+  bot.on('callback_query', async (ctx) => {
+    const data = (ctx.callbackQuery as any).data as string;
+    if (!data?.startsWith('q:')) return;
+
+    const [, qIdxStr, chosenStr] = data.split(':');
+    const qIdx = parseInt(qIdxStr, 10);
+    const chosenIdx = parseInt(chosenStr, 10);
+
+    const chatId = ctx.chat?.id ?? ctx.callbackQuery.from.id;
+    const mcqs = getMCQCache().get(chatId);
+    if (!mcqs || !mcqs[qIdx]) {
+      await ctx.answerCbQuery('Quiz expire हो गई। /quiz से नई शुरू करें।');
       return;
     }
-    await ctx.reply(formatMCQAnswer(mcqs[num - 1], num), { parse_mode: 'HTML' });
+
+    const mcq = mcqs[qIdx];
+    const correct = chosenIdx === mcq.correctIndex;
+
+    // Acknowledge the tap
+    await ctx.answerCbQuery(correct ? '✅ सही!' : '❌ गलत!');
+
+    // Edit message to show result with ticks/crosses
+    const resultText = formatMCQResult(mcq, qIdx, mcqs.length, chosenIdx);
+    await ctx.editMessageText(resultText, { parse_mode: 'HTML' }).catch(() => {});
+
+    // Send next question after short delay
+    await sleep(600);
+    const nextIdx = qIdx + 1;
+    if (nextIdx < mcqs.length) {
+      const { text, reply_markup } = formatMCQWithKeyboard(mcqs[nextIdx], nextIdx, mcqs.length);
+      await ctx.reply(text, { parse_mode: 'HTML', reply_markup } as any);
+    } else {
+      await ctx.reply(`🎉 <b>Quiz पूरी हुई!</b>\nअगली quiz के लिए /quiz भेजें।`, { parse_mode: 'HTML' });
+    }
   });
 
   // /timetable DD-MM-YYYY — AI study plan, cached 7 days per user
