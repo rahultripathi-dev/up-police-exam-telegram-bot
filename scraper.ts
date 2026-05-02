@@ -14,18 +14,20 @@ const parser = new Parser({
 
 const UP_SOURCES = [
   { url: 'https://www.amarujala.com/rss/uttar-pradesh.xml', label: 'Amar Ujala UP' },
+  { url: 'https://www.amarujala.com/rss/lucknow.xml', label: 'Amar Ujala Lucknow' },
 ];
 
 const INDIA_SOURCES = [
+  // Hindi sources
   { url: 'https://www.amarujala.com/rss/india-news.xml', label: 'Amar Ujala National' },
-  { url: 'https://www.jagran.com/rss/national.xml', label: 'Jagran National' },
-  { url: 'https://navbharattimes.indiatimes.com/rss/national.xml', label: 'NBT National' },
-  { url: 'https://feeds.bbci.co.uk/hindi/rss.xml', label: 'BBC Hindi' },
   { url: 'https://www.amarujala.com/rss/education.xml', label: 'Amar Ujala Education' },
-  { url: 'https://www.jagran.com/rss/education.xml', label: 'Jagran Education' },
   { url: 'https://www.amarujala.com/rss/business.xml', label: 'Amar Ujala Business' },
-  { url: 'https://www.amarujala.com/rss/technology.xml', label: 'Amar Ujala Tech' },
   { url: 'https://www.amarujala.com/rss/sports.xml', label: 'Amar Ujala Sports' },
+  { url: 'https://feeds.bbci.co.uk/hindi/rss.xml', label: 'BBC Hindi' },
+  // English fallbacks — globally accessible, Gemini converts to Hindi MCQs
+  { url: 'https://pib.gov.in/RssMain.aspx?ModId=6&Lang=1&Regid=3', label: 'PIB India' },
+  { url: 'https://www.thehindu.com/news/national/feeder/default.rss', label: 'The Hindu National' },
+  { url: 'https://www.thehindu.com/sci-tech/feeder/default.rss', label: 'The Hindu SciTech' },
 ];
 
 // Keywords to exclude — crime, accidents, politics noise

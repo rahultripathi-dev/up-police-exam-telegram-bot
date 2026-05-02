@@ -29,11 +29,17 @@ export async function getNews(region: string, limit: number): Promise<NewsItem[]
 // Generate daily MCQ pool once — 1 AI call/day, cached for all users
 export async function warmDailyMCQs(): Promise<void> {
   if (getDailyMCQs()) return;
-  console.log('🤖 Generating daily MCQ pool via AI...');
+  console.log('🤖 Warming daily MCQ pool...');
   const news = await getNews('both', 15);
-  if (news.length === 0) return;
+  console.log(`📰 News fetched: ${news.length} items`);
+  if (news.length === 0) {
+    console.error('❌ No news available — MCQ generation skipped');
+    return;
+  }
   const mcqs = await generateMCQs(news, 15);
+  console.log(`🧠 MCQs generated: ${mcqs.length}`);
   if (mcqs.length > 0) await setDailyMCQs(mcqs);
+  else console.error('❌ MCQ generation returned empty');
 }
 
 export function initScheduler(bot: Telegraf): void {

@@ -34,9 +34,10 @@ ${titles}`;
     const model = client.getGenerativeModel({ model: MODEL });
     const result = await model.generateContent(prompt);
     const text = result.response.text();
-    const match = text.match(/\[[\s\S]*\]/);
+    // Find JSON array — handle markdown code blocks and extra text
+    const match = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
     if (!match) {
-      console.error('No JSON array in MCQ response');
+      console.error('No JSON array in MCQ response:', text.slice(0, 200));
       return [];
     }
     const parsed = JSON.parse(match[0]) as MCQ[];
