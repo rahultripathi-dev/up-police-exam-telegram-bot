@@ -2,8 +2,8 @@ import cron from 'node-cron';
 import { Telegraf } from 'telegraf';
 import { getAllActiveUsers, UserPrefs } from './storage';
 import { fetchGKToday, NewsItem } from './scraper';
-import { generateMCQs, MCQ } from './mcq';
-
+import { MCQ } from './mcq';
+import { buildDailyQuiz } from './quiz-engine';
 import { formatNewsMessage, formatMCQMessage } from './formatter';
 import { getDailyMCQs, setDailyMCQs, getCachedNews, setCachedNews } from './cache';
 
@@ -26,26 +26,26 @@ export async function getNews(region: string, limit: number): Promise<NewsItem[]
   return fresh;
 }
 
-// Generate daily MCQ pool once — 1 AI call/day, cached for all users
+// Build daily MCQ pool once — no AI, uses quiz engine
 export async function warmDailyMCQs(): Promise<void> {
   if (getDailyMCQs()) return;
-  console.log('🤖 Warming daily MCQ pool...');
-  const news = await getNews('both', 15);
+  console.log('🎯 Building daily quiz pool (no AI)...');
+  const news = await getNews('both', 20);
   console.log(`📰 News fetched: ${news.length} items`);
   if (news.length === 0) {
-    console.error('❌ No news available — MCQ generation skipped');
+    console.error('❌ No news — quiz generation skipped');
     return;
   }
-  const mcqs = await generateMCQs(news, 15);
-  console.log(`🧠 MCQs generated: ${mcqs.length}`);
+  const mcqs = buildDailyQuiz(news, 15);
+  console.log(`🧠 Quiz built: ${mcqs.length} questions`);
   if (mcqs.length > 0) await setDailyMCQs(mcqs);
-  else console.error('❌ MCQ generation returned empty');
+  else console.error('❌ Quiz engine returned empty');
 }
 
 export function initScheduler(bot: Telegraf): void {
-  // Pre-generate MCQs at 00:05 IST (18:35 UTC) — 1 AI call/day for all users
+  // Pre-build quiz pool at 00:05 IST (18:35 UTC)
   cron.schedule('35 18 * * *', async () => {
-    console.log('🌙 Midnight cron: warming daily MCQ pool');
+    console.log('🌙 Midnight cron: building daily quiz pool');
     await warmDailyMCQs();
   });
 
@@ -64,7 +64,7 @@ export function initScheduler(bot: Telegraf): void {
       console.log(`📤 Dispatching to ${due.length} user(s) at ${currentTime} IST`);
       await warmDailyMCQs();
 
-      // Group by region — fetch news once per group, not per user
+      // Group by region — fetch news once per group
       const groups = new Map<string, typeof due>();
       for (const u of due) {
         const r = u.region ?? 'both';
@@ -112,7 +112,7 @@ export async function sendDailyDigest(
     if (user.mcqCount > 0) {
       const daily = getDailyMCQs();
       if (daily && daily.length >= user.mcqCount) {
-        const mcqs = shuffle(daily).slice(0, user.mcqCount);
+        const mcqs = [...daily].sort(() => Math.random() - 0.5).slice(0, user.mcqCount);
         mcqCache.set(user.chatId, mcqs);
         for (const m of formatMCQMessage(mcqs)) {
           await bot.telegram.sendMessage(user.chatId, m, { parse_mode: 'HTML' });
@@ -123,15 +123,6 @@ export async function sendDailyDigest(
   } catch (err) {
     console.error(`Digest failed for ${user.chatId}:`, err);
   }
-}
-
-function shuffle<T>(arr: T[]): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
 }
 
 function sleep(ms: number): Promise<void> {

@@ -4,15 +4,24 @@ import { startBot } from './bot';
 import { initScheduler } from './scheduler';
 import { initStorage } from './storage';
 import { initCache } from './cache';
+import { loadGKBank } from './gk-bank-scraper';
+import { setGKBank } from './quiz-engine';
 
 async function main() {
   console.log('🚀 Starting UP Police 2026 Bot...');
   await initStorage();
   await initCache();
+
+  // Load GK bank into quiz engine (non-blocking — bot starts even if bank is empty)
+  const bank = await loadGKBank();
+  setGKBank(bank);
+  if (bank.length === 0) {
+    console.warn('⚠️ GK Bank empty — send /scrape to populate it');
+  }
+
   const bot = await startBot();
   initScheduler(bot);
 
-  // Health check server — required by Render to keep service alive
   const port = process.env.PORT || 3000;
   http.createServer((_, res) => {
     res.writeHead(200);

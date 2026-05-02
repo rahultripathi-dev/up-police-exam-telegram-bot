@@ -4,6 +4,10 @@ import { generateTimetable } from './mcq';
 import { formatMCQMessage, formatMCQAnswer } from './formatter';
 import { sendDailyDigest, getMCQCache, warmDailyMCQs } from './scheduler';
 import { getDailyMCQs, getUserTimetable, setUserTimetable } from './cache';
+import { scrapeGKBank } from './gk-bank-scraper';
+import { getGKBankSize } from './quiz-engine';
+
+const ADMIN_ID = process.env.ADMIN_CHAT_ID ? Number(process.env.ADMIN_CHAT_ID) : null;
 
 export async function startBot(): Promise<Telegraf> {
   const token = process.env.TELEGRAM_BOT_TOKEN;
@@ -119,6 +123,29 @@ export async function startBot(): Promise<Telegraf> {
     await ctx.reply(`📅 <b>आपका स्टडी टाइमटेबल</b> (${daysLeft} दिन बाकी)\n\n${plan}`, {
       parse_mode: 'HTML',
     });
+  });
+
+  // /scrape — admin only: populate GK bank from IndiaBix (run once)
+  bot.command('scrape', async (ctx) => {
+    if (ADMIN_ID && ctx.chat.id !== ADMIN_ID) {
+      await ctx.reply('⛔ यह command सिर्फ admin के लिए है।');
+      return;
+    }
+    const size = getGKBankSize();
+    if (size > 500) {
+      await ctx.reply(`📚 GK Bank already has ${size} questions. Use /scrape force to re-scrape.`);
+      const arg = ctx.message.text.split(/\s+/)[1];
+      if (arg !== 'force') return;
+    }
+    await ctx.reply('🕸️ IndiaBix scraping शुरू हो रही है... (~3-4 मिनट लगेंगे)');
+    try {
+      const total = await scrapeGKBank(async (msg) => {
+        await ctx.reply(msg);
+      });
+      await ctx.reply(`✅ GK Bank तैयार! ${total} questions scraped और save हो गए।`);
+    } catch (err) {
+      await ctx.reply(`❌ Scraping failed: ${(err as Error).message}`);
+    }
   });
 
   // /setregion up | india | both
