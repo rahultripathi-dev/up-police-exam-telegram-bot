@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: up-police-bot
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DB_PATH
+        value: /data/users.json
+    disk:
+      name: botdata
+      mountPath: /data
+      sizeGB: 1

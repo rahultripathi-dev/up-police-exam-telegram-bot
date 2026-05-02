@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import http from 'http';
 import { startBot } from './bot';
 import { initScheduler } from './scheduler';
 import { initStorage } from './storage';
@@ -10,6 +11,14 @@ async function main() {
   await initCache();
   const bot = await startBot();
   initScheduler(bot);
+
+  // Health check server — required by Render to keep service alive
+  const port = process.env.PORT || 3000;
+  http.createServer((_, res) => {
+    res.writeHead(200);
+    res.end('OK');
+  }).listen(port, () => console.log(`Health check on port ${port}`));
+
   console.log('✅ Bot running. Press Ctrl+C to stop.');
 }
 
