@@ -4,8 +4,8 @@ import { generateTimetable } from './mcq';
 import { formatMCQWithKeyboard, formatMCQResult } from './formatter';
 import { sendDailyDigest, getMCQCache, warmDailyMCQs } from './scheduler';
 import { getDailyMCQs, getUserTimetable, setUserTimetable } from './cache';
-import { scrapeGKBank } from './gk-bank-scraper';
-import { getGKBankSize } from './quiz-engine';
+import { scrapeGKBank, loadGKBank } from './gk-bank-scraper';
+import { getGKBankSize, setGKBank } from './quiz-engine';
 
 const ADMIN_ID = process.env.ADMIN_CHAT_ID ? Number(process.env.ADMIN_CHAT_ID) : null;
 
@@ -168,7 +168,9 @@ export async function startBot(): Promise<Telegraf> {
       const total = await scrapeGKBank(async (msg) => {
         await ctx.reply(msg);
       });
-      await ctx.reply(`✅ GK Bank तैयार! ${total} questions scraped और save हो गए।`);
+      const freshBank = await loadGKBank();
+      setGKBank(freshBank);
+      await ctx.reply(`✅ GK Bank तैयार! ${total} questions scraped और memory में load हो गए।`);
     } catch (err) {
       await ctx.reply(`❌ Scraping failed: ${(err as Error).message}`);
     }
