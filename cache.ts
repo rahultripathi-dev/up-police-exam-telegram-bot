@@ -3,9 +3,10 @@ import path from 'path';
 import { MCQ } from './mcq';
 import { NewsItem } from './scraper';
 
-const CACHE_PATH = process.env.DB_PATH
-  ? path.join(path.dirname(process.env.DB_PATH), 'cache.json')
-  : './data/cache.json';
+const _dbPath = process.env.DB_PATH?.startsWith('/data')
+  ? './data/users.json'
+  : process.env.DB_PATH || './data/users.json';
+const CACHE_PATH = path.join(path.dirname(_dbPath), 'cache.json');
 
 interface NewsEntry {
   fetchedAt: string;

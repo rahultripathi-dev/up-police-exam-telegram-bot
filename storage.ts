@@ -1,7 +1,9 @@
 import fs from 'fs/promises';
 import path from 'path';
 
-const DB_PATH = process.env.DB_PATH || './data/users.json';
+const DB_PATH = process.env.DB_PATH?.startsWith('/data')
+  ? './data/users.json'
+  : process.env.DB_PATH || './data/users.json';
 
 export type NewsRegion = 'up' | 'india' | 'both';
 
