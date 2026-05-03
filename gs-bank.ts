@@ -1,10 +1,11 @@
 import { MCQ } from './mcq';
+import { getAllGeneratedGSQuestions } from './gs-data';
 
 export interface GSQuestion extends MCQ {
   topic: string;
 }
 
-export const gsBank: GSQuestion[] = [
+const _staticGSBank: GSQuestion[] = [
 
   // ══════════════════════════════════════════
   // UP Special GK — 120 questions
@@ -193,8 +194,23 @@ export const gsBank: GSQuestion[] = [
   { topic: 'current-affairs', question: 'भारत का राष्ट्रीय फूल कौन सा है?', options: ['गुलाब', 'कमल', 'चमेली', 'सूरजमुखी'], correctIndex: 1, explanation: 'कमल (Lotus) भारत का राष्ट्रीय पुष्प है।' },
 ];
 
+function dedupe(qs: GSQuestion[]): GSQuestion[] {
+  const seen = new Set<string>();
+  return qs.filter(q => {
+    const key = q.question.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export const gsBank: GSQuestion[] = dedupe([
+  ..._staticGSBank,
+  ...getAllGeneratedGSQuestions(),
+]);
+
 export function buildGSQuiz(total: number, topic?: string): GSQuestion[] {
-  const pool = topic ? gsBank.filter(q => q.topic === topic) : gsBank;
+  const pool = topic ? gsBank.filter((q: GSQuestion) => q.topic === topic) : gsBank;
   if (pool.length === 0) return [];
 
   if (!topic) {
@@ -212,14 +228,14 @@ export function buildGSQuiz(total: number, topic?: string): GSQuestion[] {
     const picked: GSQuestion[] = [];
 
     for (const [t, w] of Object.entries(weights)) {
-      const tPool = gsBank.filter(q => q.topic === t);
+      const tPool = gsBank.filter((q: GSQuestion) => q.topic === t);
       const count = Math.round((w / totalWeight) * total);
       const sampled = [...tPool].sort(() => Math.random() - 0.5).slice(0, count);
       picked.push(...sampled);
     }
 
     if (picked.length < total) {
-      const remaining = gsBank.filter(q => !picked.includes(q));
+      const remaining = gsBank.filter((q: GSQuestion) => !picked.includes(q));
       picked.push(...[...remaining].sort(() => Math.random() - 0.5).slice(0, total - picked.length));
     }
     return [...picked].sort(() => Math.random() - 0.5).slice(0, total);

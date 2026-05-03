@@ -1,10 +1,11 @@
 import { MCQ } from './mcq';
+import { getAllGeneratedHindiQuestions } from './hindi-data';
 
 export interface HindiMCQ extends MCQ {
   topic: string;
 }
 
-export const hindiBank: HindiMCQ[] = [
+const _staticHindiBank: HindiMCQ[] = [
 
   // ══════════════════════════════════════════
   // पर्यायवाची शब्द (Synonyms) — 50 questions
@@ -220,8 +221,23 @@ export const hindiBank: HindiMCQ[] = [
 
 ];
 
+function dedupe(qs: HindiMCQ[]): HindiMCQ[] {
+  const seen = new Set<string>();
+  return qs.filter(q => {
+    const key = q.question.trim().toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+export const hindiBank: HindiMCQ[] = dedupe([
+  ..._staticHindiBank,
+  ...getAllGeneratedHindiQuestions(),
+]);
+
 export function buildHindiQuiz(total: number, topic?: string): HindiMCQ[] {
-  const pool = topic ? hindiBank.filter(q => q.topic === topic) : hindiBank;
+  const pool = topic ? hindiBank.filter((q: HindiMCQ) => q.topic === topic) : hindiBank;
   if (pool.length === 0) return [];
 
   // Weighted topic sampling for mixed quiz
@@ -234,14 +250,14 @@ export function buildHindiQuiz(total: number, topic?: string): HindiMCQ[] {
     const picked: HindiMCQ[] = [];
 
     for (const [t, w] of Object.entries(topics)) {
-      const tPool = hindiBank.filter(q => q.topic === t);
+      const tPool = hindiBank.filter((q: HindiMCQ) => q.topic === t);
       const count = Math.round((w / totalWeight) * total);
       const sampled = [...tPool].sort(() => Math.random() - 0.5).slice(0, count);
       picked.push(...sampled);
     }
 
     if (picked.length < total) {
-      const remaining = hindiBank.filter(q => !picked.includes(q));
+      const remaining = hindiBank.filter((q: HindiMCQ) => !picked.includes(q));
       picked.push(...[...remaining].sort(() => Math.random() - 0.5).slice(0, total - picked.length));
     }
     return [...picked].sort(() => Math.random() - 0.5).slice(0, total);
