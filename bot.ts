@@ -5,7 +5,7 @@ import { formatMCQWithKeyboard, formatMCQResult } from './formatter';
 import { sendDailyDigest, getMCQCache, warmDailyMCQs } from './scheduler';
 import { getDailyMCQs, getUserTimetable, setUserTimetable } from './cache';
 import { scrapeGKBank, loadGKBank } from './gk-bank-scraper';
-import { getGKBankSize, setGKBank } from './quiz-engine';
+import { getGKBankSize, setGKBank, buildHindiOnlyQuiz, buildGSOnlyQuiz, getTotalBankSize } from './quiz-engine';
 
 const ADMIN_ID = process.env.ADMIN_CHAT_ID ? Number(process.env.ADMIN_CHAT_ID) : null;
 
@@ -27,7 +27,9 @@ export async function startBot(): Promise<Telegraf> {
         `🧠 ${user.mcqCount} MCQ\n\n` +
         `<b>Commands:</b>\n` +
         `/today — अभी करेंट अफेयर्स\n` +
-        `/quiz — MCQ प्रैक्टिस\n` +
+        `/hindi — सामान्य हिंदी MCQ (पर्यायवाची, विलोम, मुहावरे)\n` +
+        `/gs — सामान्य ज्ञान MCQ (UP Special, संविधान, इतिहास)\n` +
+        `/quiz — मिश्रित MCQ प्रैक्टिस\n` +
         `/timetable DD-MM-YYYY — स्टडी टाइमटेबल\n` +
         `/setregion up|india|both — क्षेत्र चुनें\n` +
         `/settime HH:MM — समय बदलें\n` +
@@ -37,7 +39,7 @@ export async function startBot(): Promise<Telegraf> {
         `/resume — फिर से शुरू करें\n` +
         `/status — सेटिंग देखें\n` +
         `/help — यह मैसेज दोबारा\n\n` +
-        `🚀 शुरू करें! अभी /today टाइप करें।`,
+        `🚀 शुरू करें! /hindi या /gs टाइप करें।`,
       { parse_mode: 'HTML' }
     );
   });
@@ -105,6 +107,30 @@ export async function startBot(): Promise<Telegraf> {
     } else {
       await ctx.reply(`🎉 <b>Quiz पूरी हुई!</b>\nअगली quiz के लिए /quiz भेजें।`, { parse_mode: 'HTML' });
     }
+  });
+
+  // /hindi — 5 Hindi grammar/vocabulary MCQs from static bank
+  bot.command('hindi', async (ctx) => {
+    const selected = buildHindiOnlyQuiz(5);
+    if (selected.length === 0) {
+      await ctx.reply('⚠️ Hindi bank empty।');
+      return;
+    }
+    getMCQCache().set(ctx.chat.id, selected);
+    const { text, reply_markup } = formatMCQWithKeyboard(selected[0], 0, selected.length);
+    await ctx.reply(text, { parse_mode: 'HTML', reply_markup } as any);
+  });
+
+  // /gs — 5 GS MCQs (UP Special, Constitution, History, Economy, Science)
+  bot.command('gs', async (ctx) => {
+    const selected = buildGSOnlyQuiz(5);
+    if (selected.length === 0) {
+      await ctx.reply('⚠️ GS bank empty।');
+      return;
+    }
+    getMCQCache().set(ctx.chat.id, selected);
+    const { text, reply_markup } = formatMCQWithKeyboard(selected[0], 0, selected.length);
+    await ctx.reply(text, { parse_mode: 'HTML', reply_markup } as any);
   });
 
   // /timetable DD-MM-YYYY — AI study plan, cached 7 days per user
@@ -277,8 +303,13 @@ export async function startBot(): Promise<Telegraf> {
   bot.command('help', async (ctx) => {
     await ctx.reply(
       `<b>UP Police 2026 Bot — Commands</b>\n\n` +
-        `/today — अभी करेंट अफेयर्स\n` +
-        `/quiz — MCQ प्रैक्टिस\n` +
+        `<b>📝 प्रैक्टिस:</b>\n` +
+        `/hindi — सामान्य हिंदी MCQ (पर्यायवाची, विलोम, तत्सम-तद्भव, मुहावरे)\n` +
+        `/gs — सामान्य ज्ञान MCQ (UP Special, संविधान, इतिहास, अर्थव्यवस्था)\n` +
+        `/quiz — मिश्रित MCQ\n\n` +
+        `<b>📰 करेंट अफेयर्स:</b>\n` +
+        `/today — अभी करेंट अफेयर्स\n\n` +
+        `<b>⚙️ सेटिंग:</b>\n` +
         `/timetable DD-MM-YYYY — स्टडी टाइमटेबल\n` +
         `/setregion up|india|both — क्षेत्र चुनें\n` +
         `/settime HH:MM — डेली समय बदलें\n` +
